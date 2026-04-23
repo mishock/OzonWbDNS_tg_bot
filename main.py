@@ -10,11 +10,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
+from app import router, setup_logging
 from config import settings
-from handlers.category import router as category_router
-from handlers.search import router as search_router
-from handlers.start import router as start_router
-from utils.logger import setup_logging
 
 
 async def main() -> None:
@@ -25,10 +22,7 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
-
-    dp.include_router(start_router)
-    dp.include_router(category_router)
-    dp.include_router(search_router)
+    dp.include_router(router)
 
     await dp.start_polling(bot)
 
