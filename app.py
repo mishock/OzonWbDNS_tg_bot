@@ -26,6 +26,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# =========================
+# Константы и словари
+# =========================
+
 # 1x1 PNG (белый пиксель) как гарантированный fallback.
 FALLBACK_IMAGE_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBAAZ/q8kAAAAASUVORK5CYII="
@@ -52,6 +56,10 @@ MARKETPLACE_ICONS: dict[str, str] = {
 
 SPINNER_FRAMES: tuple[str, ...] = ("◐", "◓", "◑", "◒")
 SPARK_FRAMES: tuple[str, ...] = ("✨", "💫", "⭐", "🌟")
+
+# =========================
+# Утилиты
+# =========================
 
 
 def setup_logging() -> None:
@@ -80,6 +88,10 @@ def spark_frame(step: int) -> str:
 def format_price(value: float | int) -> str:
     return f"{int(value):,}".replace(",", " ") + " ₽"
 
+
+# =========================
+# Модели данных
+# =========================
 
 @dataclass(frozen=True)
 class Category:
@@ -122,6 +134,10 @@ def product_image_url(product: Product) -> str:
 def sort_products_by_price(products: list[Product]) -> list[Product]:
     return sorted(products, key=lambda item: float(item.price))
 
+
+# =========================
+# Сервисы приложения
+# =========================
 
 class MarketplaceService:
     def __init__(self, products_path: Path, marketplace_name: str, search_url_template: str) -> None:
@@ -234,6 +250,10 @@ class AIService:
         return "\n".join(lines)
 
 
+# =========================
+# Telegram-клавиатуры
+# =========================
+
 def start_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -272,10 +292,18 @@ def result_actions_keyboard() -> InlineKeyboardMarkup:
     )
 
 
+# =========================
+# Инициализация и роутер
+# =========================
+
 catalog_service = CatalogService()
 ai_service = AIService()
 router = Router()
 
+
+# =========================
+# Обработчики Telegram-событий
+# =========================
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
