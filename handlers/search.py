@@ -8,7 +8,7 @@ import base64
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import BufferedInputFile, CallbackQuery
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 import aiohttp
 
 from config import settings
@@ -16,6 +16,7 @@ from keyboards.main import result_actions_keyboard
 from services.ai_service import ai_service
 from services.catalog_service import catalog_service
 from utils.formatter import format_product, product_image_url
+from utils.ui_icons import spark_frame, spinner_frame
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -34,10 +35,11 @@ async def render_category_products(callback: CallbackQuery, category_slug: str, 
     Рисует страницу товаров выбранной категории.
     """
     try:
+        step = offset // PAGE_SIZE
+        await callback.answer(f"{spinner_frame(step)} Ищу товары...", show_alert=False)
         category = catalog_service.resolve_category(category_slug)
         if not category:
             await callback.message.edit_text("Категория не найдена. Выберите другую.", reply_markup=None)
-            await callback.answer()
             return
 
         products = catalog_service.search_by_category(
@@ -49,12 +51,22 @@ async def render_category_products(callback: CallbackQuery, category_slug: str, 
             await callback.message.edit_text(
                 "По этой категории товары не найдены. Попробуйте выбрать другую категорию.",
             )
-            await callback.answer()
             return
 
         page = products[offset : offset + PAGE_SIZE]
         if not page:
-            await callback.answer("Больше товаров нет.", show_alert=True)
+            # Для пустой страницы говорим в чат явно: это заметнее, чем скрытый callback.
+            await callback.message.answer("ℹ️ Больше товаров нет в этой категории.")
+            no_more_keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="🗂 Другую категорию", callback_data="open_categories")],
+                    [InlineKeyboardButton(text="🆕 Новый поиск", callback_data="new_search")],
+                ]
+            )
+            await callback.message.answer(
+                "🗂 Выберите другую категорию или начните новый поиск:",
+                reply_markup=no_more_keyboard,
+            )
             return
 
         next_offset = offset + PAGE_SIZE
@@ -67,7 +79,7 @@ async def render_category_products(callback: CallbackQuery, category_slug: str, 
             pass
 
         await callback.message.edit_text(
-            f"<b>Категория:</b> {category.title}\n"
+            f"{spark_frame(step)} <b>Категория:</b> {category.title}\n"
             f"Показаны товары {offset + 1}-{offset + len(page)}.",
             disable_web_page_preview=True,
         )
@@ -76,7 +88,7 @@ async def render_category_products(callback: CallbackQuery, category_slug: str, 
         # Включается только если AI_ENABLED=true в .env.
         ai_text = await ai_service.build_recommendation(category_title=category.title, products=page)
         if ai_text:
-            await callback.message.answer(f"<b>AI-рекомендация:</b>\n{ai_text}")
+            await callback.message.answer(f"{spark_frame(step + 1)} <b>AI-рекомендация:</b>\n{ai_text}")
 
         # Отправляем каждый товар отдельной карточкой с изображением.
         # Если фото не удалось отправить, падаем в текстовый fallback.
@@ -122,16 +134,18 @@ async def render_category_products(callback: CallbackQuery, category_slug: str, 
         # Отправляем кнопки отдельным последним сообщением,
         # чтобы они были в самом низу чата.
         await callback.message.answer(
-            "Выберите действие:",
+            f"{spinner_frame(step + 1)} Выберите действие:",
             reply_markup=keyboard,
         )
-        await callback.answer()
     except Exception as error:
         logger.exception("Ошибка при выдаче товаров: %s", error)
         await callback.message.edit_text(
             "Произошла ошибка при получении товаров. Попробуйте еще раз.",
         )
-        await callback.answer()
+        try:
+            await callback.answer()
+        except Exception:
+            pass
 
 
 @router.callback_query(F.data.startswith("more:"))

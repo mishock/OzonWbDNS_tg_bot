@@ -17,7 +17,7 @@ router = Router()
 async def callback_open_categories(callback: CallbackQuery) -> None:
     categories = catalog_service.get_categories()
     await callback.message.edit_text(
-        "Выберите категорию товара:",
+        "🧩 Выберите категорию товара:",
         reply_markup=categories_keyboard(categories),
     )
     await callback.answer()
