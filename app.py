@@ -25,6 +25,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton
 from config import settings
 
 logger = logging.getLogger(__name__)
+ai_runtime_enabled = settings.ai_enabled
 
 # =========================
 # Константы и словари
@@ -53,9 +54,12 @@ MARKETPLACE_ICONS: dict[str, str] = {
     "Wildberries": "🟣",
     "DNS": "🟧",
 }
+MARKETPLACE_ORDER: tuple[str, ...] = ("Ozon", "Wildberries", "DNS")
 
 SPINNER_FRAMES: tuple[str, ...] = ("◐", "◓", "◑", "◒")
 SPARK_FRAMES: tuple[str, ...] = ("✨", "💫", "⭐", "🌟")
+PAGE_SIZE = 3
+MAX_TOTAL_RESULTS = 15
 
 # =========================
 # Утилиты
@@ -87,6 +91,14 @@ def spark_frame(step: int) -> str:
 
 def format_price(value: float | int) -> str:
     return f"{int(value):,}".replace(",", " ") + " ₽"
+
+
+def is_ai_enabled() -> bool:
+    return ai_runtime_enabled
+
+
+def ai_status_label() -> str:
+    return "🟢 AI: ВКЛ" if is_ai_enabled() else "⚪ AI: ВЫКЛ"
 
 
 # =========================
@@ -133,6 +145,35 @@ def product_image_url(product: Product) -> str:
 
 def sort_products_by_price(products: list[Product]) -> list[Product]:
     return sorted(products, key=lambda item: float(item.price))
+
+
+def interleave_by_marketplace(products: list[Product]) -> list[Product]:
+    """
+    Собирает выдачу "по кругу" маркетплейсов:
+    Ozon -> Wildberries -> DNS -> ...
+    Это дает блоки по 3 товара из разных источников (если в источниках есть товары).
+    """
+    buckets: dict[str, list[Product]] = {name: [] for name in MARKETPLACE_ORDER}
+    fallback: list[Product] = []
+    for product in products:
+        if product.marketplace in buckets:
+            buckets[product.marketplace].append(product)
+        else:
+            fallback.append(product)
+
+    result: list[Product] = []
+    while True:
+        appended = False
+        for marketplace in MARKETPLACE_ORDER:
+            if buckets[marketplace]:
+                result.append(buckets[marketplace].pop(0))
+                appended = True
+        if not appended:
+            break
+
+    # Если появятся нестандартные площадки, добавляем их в конец.
+    result.extend(fallback)
+    return result
 
 
 # =========================
@@ -198,7 +239,7 @@ class CatalogService:
 
 class AIService:
     async def build_recommendation(self, category_title: str, products: list[Product]) -> str | None:
-        if not settings.ai_enabled:
+        if not is_ai_enabled():
             return None
         if not settings.deepseek_api_key:
             logger.warning("AI включен, но DEEPSEEK_API_KEY не задан")
@@ -239,6 +280,67 @@ class AIService:
             logger.warning("Не удалось получить AI-рекомендацию: %s", error)
             return None
 
+    async def build_live_products(
+        self,
+        category_title: str,
+        category_slug: str,
+        per_marketplace_limit: int,
+    ) -> list[Product] | None:
+        """
+        Пытается получить "живой" список товаров через AI.
+        Возвращает None, если AI выключен/недоступен или ответ невалидный.
+        """
+        if not is_ai_enabled():
+            return None
+        if not settings.deepseek_api_key:
+            return None
+
+        endpoint = settings.deepseek_base_url.rstrip("/") + "/chat/completions"
+        total_limit = max(per_marketplace_limit * 3, 6)
+        payload = {
+            "model": settings.deepseek_model,
+            "temperature": 0.2,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты помощник по подбору товаров. Верни ТОЛЬКО JSON-массив без пояснений. "
+                        "Элементы массива: title, price, marketplace, rating, description. "
+                        "marketplace только из: Ozon, Wildberries, DNS."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Категория: {category_title}. Подбери до {total_limit} актуальных товаров "
+                        "и верни JSON-массив объектов."
+                    ),
+                },
+            ],
+        }
+        headers = {
+            "Authorization": f"Bearer {settings.deepseek_api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            timeout = aiohttp.ClientTimeout(total=25)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(endpoint, json=payload, headers=headers) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            products = self._parse_live_products_json(
+                content=content,
+                category_slug=category_slug,
+                per_marketplace_limit=per_marketplace_limit,
+            )
+            if not products:
+                return None
+            return products
+        except Exception as error:
+            logger.warning("Не удалось получить AI-каталог: %s", error)
+            return None
+
     @staticmethod
     def _build_user_prompt(category_title: str, products: list[Product]) -> str:
         lines = [f"Категория: {category_title}", "Список товаров:"]
@@ -249,6 +351,80 @@ class AIService:
         lines.append("Сделай краткую рекомендацию, какой товар выбрать пользователю в первую очередь.")
         return "\n".join(lines)
 
+    @staticmethod
+    def _parse_live_products_json(
+        content: str,
+        category_slug: str,
+        per_marketplace_limit: int,
+    ) -> list[Product]:
+        """
+        Парсит JSON-массив товаров из ответа AI и нормализует в Product.
+        """
+        start = content.find("[")
+        end = content.rfind("]")
+        if start == -1 or end == -1 or end <= start:
+            return []
+
+        raw_array = content[start : end + 1]
+        data = json.loads(raw_array)
+        if not isinstance(data, list):
+            return []
+
+        result: list[Product] = []
+        per_marketplace_count: dict[str, int] = {"Ozon": 0, "Wildberries": 0, "DNS": 0}
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title", "")).strip()
+            marketplace = str(item.get("marketplace", "")).strip()
+            if not title or marketplace not in per_marketplace_count:
+                continue
+            if per_marketplace_count[marketplace] >= per_marketplace_limit:
+                continue
+
+            try:
+                price = float(item.get("price", 0))
+            except Exception:
+                price = 0.0
+            if price <= 0:
+                continue
+
+            rating_raw = item.get("rating")
+            try:
+                rating = float(rating_raw) if rating_raw is not None else None
+            except Exception:
+                rating = None
+
+            description = item.get("description")
+            if description is not None:
+                description = str(description).strip()
+
+            url = AIService._build_marketplace_search_url(marketplace=marketplace, title=title)
+            result.append(
+                Product(
+                    title=title,
+                    price=price,
+                    category=category_slug,
+                    marketplace=marketplace,
+                    url=url,
+                    image_url=None,
+                    rating=rating,
+                    description=description or None,
+                )
+            )
+            per_marketplace_count[marketplace] += 1
+
+        return sort_products_by_price(result)
+
+    @staticmethod
+    def _build_marketplace_search_url(marketplace: str, title: str) -> str:
+        query = quote_plus(title)
+        if marketplace == "Ozon":
+            return f"https://www.ozon.ru/search/?text={query}"
+        if marketplace == "Wildberries":
+            return f"https://www.wildberries.ru/catalog/0/search.aspx?search={query}"
+        return f"https://www.dns-shop.ru/search/?q={query}"
+
 
 # =========================
 # Telegram-клавиатуры
@@ -258,6 +434,7 @@ def start_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🧭 Выбрать категорию", callback_data="open_categories")],
+            [InlineKeyboardButton(text=ai_status_label(), callback_data="ai_toggle")],
         ]
     )
 
@@ -280,16 +457,24 @@ def categories_keyboard(categories: list[Category]) -> InlineKeyboardMarkup:
         rows.append(current_row)
 
     rows.append([InlineKeyboardButton(text="🆕 Новый поиск", callback_data="new_search")])
+    rows.append([InlineKeyboardButton(text=ai_status_label(), callback_data="ai_toggle")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def result_actions_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def result_actions_keyboard(category_slug: str, next_offset: int, has_more: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if has_more:
+        rows.append(
+            [InlineKeyboardButton(text="🔄 Показать еще", callback_data=f"more:{category_slug}:{next_offset}")]
+        )
+    rows.extend(
+        [
+            [InlineKeyboardButton(text=ai_status_label(), callback_data="ai_toggle")],
             [InlineKeyboardButton(text="🗂 Другую категорию", callback_data="open_categories")],
             [InlineKeyboardButton(text="🆕 Новый поиск", callback_data="new_search")],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 # =========================
@@ -326,6 +511,18 @@ async def callback_new_search(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "ai_toggle")
+async def callback_ai_toggle(callback: CallbackQuery) -> None:
+    global ai_runtime_enabled
+    ai_runtime_enabled = not ai_runtime_enabled
+    status_text = "включен" if ai_runtime_enabled else "выключен"
+    await callback.answer(f"AI-режим {status_text}", show_alert=True)
+    await callback.message.answer(
+        f"🤖 AI-режим {status_text}.",
+        reply_markup=start_keyboard(),
+    )
+
+
 @router.callback_query(F.data == "open_categories")
 async def callback_open_categories(callback: CallbackQuery) -> None:
     categories = catalog_service.get_categories()
@@ -339,28 +536,48 @@ async def callback_open_categories(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("cat:"))
 async def callback_choose_category(callback: CallbackQuery) -> None:
     category_slug = callback.data.split(":", maxsplit=1)[1]
-    await render_category_products(callback, category_slug=category_slug)
+    await render_category_products(callback, category_slug=category_slug, offset=0)
 
 
-async def render_category_products(callback: CallbackQuery, category_slug: str) -> None:
+@router.callback_query(F.data.startswith("more:"))
+async def callback_more(callback: CallbackQuery) -> None:
+    _, category_slug, offset_str = callback.data.split(":")
+    offset = int(offset_str)
+    await render_category_products(callback, category_slug=category_slug, offset=offset)
+
+
+async def render_category_products(callback: CallbackQuery, category_slug: str, offset: int) -> None:
     try:
-        step = 0
+        step = offset // PAGE_SIZE
         await callback.answer(f"{spinner_frame(step)} Ищу товары...", show_alert=False)
         category = catalog_service.resolve_category(category_slug)
         if not category:
             await callback.message.edit_text("Категория не найдена. Выберите другую.", reply_markup=None)
             return
 
-        products = catalog_service.search_by_category(
+        products = await ai_service.build_live_products(
+            category_title=category.title,
             category_slug=category_slug,
             per_marketplace_limit=settings.per_marketplace_limit,
         )
+        if not products:
+            products = catalog_service.search_by_category(
+                category_slug=category_slug,
+                per_marketplace_limit=settings.per_marketplace_limit,
+            )
+        products = interleave_by_marketplace(products)[:MAX_TOTAL_RESULTS]
 
         if not products:
             await callback.message.edit_text(
                 "По этой категории товары не найдены. Попробуйте выбрать другую категорию.",
             )
             return
+        page = products[offset : offset + PAGE_SIZE]
+        if not page:
+            await callback.answer("Больше товаров нет.", show_alert=True)
+            return
+        next_offset = offset + PAGE_SIZE
+        has_more = next_offset < len(products)
 
         try:
             await callback.message.edit_reply_markup(reply_markup=None)
@@ -369,15 +586,17 @@ async def render_category_products(callback: CallbackQuery, category_slug: str) 
 
         await callback.message.edit_text(
             f"{spark_frame(step)} <b>Категория:</b> {category.title}\n"
-            f"Показано товаров: {len(products)}.",
+            f"Показаны товары {offset + 1}-{offset + len(page)} из {len(products)}.",
             disable_web_page_preview=True,
         )
 
-        ai_text = await ai_service.build_recommendation(category_title=category.title, products=products)
+        ai_text = None
+        if offset == 0:
+            ai_text = await ai_service.build_recommendation(category_title=category.title, products=products)
         if ai_text:
             await callback.message.answer(f"{spark_frame(step + 1)} <b>AI-рекомендация:</b>\n{ai_text}")
 
-        for product in products:
+        for product in page:
             card_text = format_product(product)
             if product.image_url:
                 image_url = product_image_url(product)
@@ -414,7 +633,11 @@ async def render_category_products(callback: CallbackQuery, category_slug: str) 
 
         await callback.message.answer(
             f"{spinner_frame(step + 1)} Выберите действие:",
-            reply_markup=result_actions_keyboard(),
+            reply_markup=result_actions_keyboard(
+                category_slug=category_slug,
+                next_offset=next_offset,
+                has_more=has_more,
+            ),
         )
     except Exception as error:
         logger.exception("Ошибка при выдаче товаров: %s", error)
