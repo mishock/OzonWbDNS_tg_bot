@@ -7,6 +7,7 @@
 -->
 
 ## 2026-04-23
+- Исключен `.cursorrules` из git: файл добавлен в `.gitignore` и переведен в локальный (неотслеживаемый) режим.
 - Создан каркас проекта Telegram-бота на Python.
 - Добавлены Dockerfile, docker-compose, .env и документация.
 - Реализован базовый поиск по Ozon, Wildberries и DNS.

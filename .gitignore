@@ -18,3 +18,4 @@ venv/
 # Что: IDE-специфичные файлы.
 .idea/
 .vscode/
+.cursorrules
