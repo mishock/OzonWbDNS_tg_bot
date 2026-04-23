@@ -1,0 +1,10 @@
+[
+  {"slug": "smartphones", "title": "Смартфоны"},
+  {"slug": "laptops", "title": "Ноутбуки"},
+  {"slug": "tvs", "title": "Телевизоры"},
+  {"slug": "fridges", "title": "Холодильники"},
+  {"slug": "headphones", "title": "Наушники"},
+  {"slug": "vacuums", "title": "Пылесосы"},
+  {"slug": "monitors", "title": "Мониторы"},
+  {"slug": "washers", "title": "Стиральные машины"}
+]

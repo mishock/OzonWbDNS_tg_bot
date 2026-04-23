@@ -1,0 +1,33 @@
+[
+  {"title":"iPhone 13 128GB","price":49990,"category":"smartphones","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-iphone-13-128","image_url":null,"rating":4.8,"description":"Смартфон Apple 128GB"},
+  {"title":"Samsung Galaxy A55","price":32490,"category":"smartphones","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-galaxy-a55/detail.aspx","image_url":null,"rating":4.7,"description":"Смартфон Samsung серии A"},
+  {"title":"Xiaomi Redmi Note 13","price":21999,"category":"smartphones","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-redmi-note-13/","image_url":null,"rating":4.6,"description":"Смартфон Xiaomi Redmi"},
+
+  {"title":"ASUS VivoBook 15","price":55990,"category":"laptops","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-asus-vivobook-15","image_url":null,"rating":4.6,"description":"Ноутбук ASUS 15.6"},
+  {"title":"Lenovo IdeaPad 3","price":48990,"category":"laptops","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-ideapad-3/detail.aspx","image_url":null,"rating":4.5,"description":"Ноутбук Lenovo для учебы"},
+  {"title":"HP 250 G9","price":52999,"category":"laptops","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-hp-250-g9/","image_url":null,"rating":4.4,"description":"Ноутбук HP 15.6"},
+
+  {"title":"LG 55UQ75006LF","price":44990,"category":"tvs","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-lg-55-tv","image_url":null,"rating":4.7,"description":"Телевизор 55 дюймов 4K"},
+  {"title":"Samsung UE43CU7100","price":38990,"category":"tvs","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-samsung-tv/detail.aspx","image_url":null,"rating":4.6,"description":"Телевизор Samsung 43"},
+  {"title":"Haier 50 Smart TV S2","price":29999,"category":"tvs","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-haier-50-tv/","image_url":null,"rating":4.4,"description":"Телевизор Haier 50"},
+
+  {"title":"ATLANT ХМ 6025","price":36990,"category":"fridges","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-atlant-fridge","image_url":null,"rating":4.5,"description":"Холодильник ATLANT двухкамерный"},
+  {"title":"Beko RCNK270K20W","price":34990,"category":"fridges","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-beko-fridge/detail.aspx","image_url":null,"rating":4.4,"description":"Холодильник Beko"},
+  {"title":"Indesit ITR 5200","price":39999,"category":"fridges","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-indesit-fridge/","image_url":null,"rating":4.3,"description":"Холодильник Indesit"},
+
+  {"title":"Sony WH-CH520","price":4990,"category":"headphones","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-sony-wh-ch520","image_url":null,"rating":4.8,"description":"Bluetooth-наушники Sony"},
+  {"title":"JBL Tune 520BT","price":4590,"category":"headphones","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-jbl-520/detail.aspx","image_url":null,"rating":4.7,"description":"Наушники JBL"},
+  {"title":"Anker Soundcore Q20i","price":5999,"category":"headphones","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-anker-q20i/","image_url":null,"rating":4.5,"description":"Полноразмерные наушники Anker"},
+
+  {"title":"Dreame V11","price":18990,"category":"vacuums","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-dreame-v11","image_url":null,"rating":4.7,"description":"Беспроводной пылесос Dreame"},
+  {"title":"Xiaomi Vacuum Cleaner G10","price":20990,"category":"vacuums","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-xiaomi-g10/detail.aspx","image_url":null,"rating":4.6,"description":"Вертикальный пылесос Xiaomi"},
+  {"title":"Tefal TW3927","price":8999,"category":"vacuums","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-tefal-tw3927/","image_url":null,"rating":4.4,"description":"Пылесос Tefal с мешком"},
+
+  {"title":"AOC 24G2SPU","price":16990,"category":"monitors","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-aoc-24g2spu","image_url":null,"rating":4.8,"description":"Игровой монитор 24"},
+  {"title":"LG 27MP400-B","price":12990,"category":"monitors","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-lg-27mp400/detail.aspx","image_url":null,"rating":4.6,"description":"Монитор LG 27"},
+  {"title":"Samsung Odyssey G3","price":17999,"category":"monitors","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-samsung-odyssey-g3/","image_url":null,"rating":4.5,"description":"Монитор Samsung 24"},
+
+  {"title":"LG F2V5HS0W","price":37990,"category":"washers","marketplace":"Ozon","url":"https://www.ozon.ru/product/mock-lg-f2v5hs0w","image_url":null,"rating":4.7,"description":"Стиральная машина LG"},
+  {"title":"Samsung WW60A3100BE","price":32990,"category":"washers","marketplace":"Wildberries","url":"https://www.wildberries.ru/catalog/mock-samsung-ww60/detail.aspx","image_url":null,"rating":4.6,"description":"Стиральная машина Samsung"},
+  {"title":"Bosch WAN24200ME","price":45999,"category":"washers","marketplace":"DNS","url":"https://www.dns-shop.ru/product/mock-bosch-wan24200me/","image_url":null,"rating":4.8,"description":"Стиральная машина Bosch"}
+]
