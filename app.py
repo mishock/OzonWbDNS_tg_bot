@@ -19,13 +19,17 @@ from urllib.parse import quote_plus
 import aiohttp
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 ai_runtime_enabled = settings.ai_enabled
+
+# Итоговый проект по ТЗ: «Telegram-бот-агрегатор AKEM-bot» (@OzonWbDNS_bot)
+BOT_BRAND_NAME = "AKEM-bot"
+BOT_USERNAME_DISPLAY = "@OzonWbDNS_bot"
 
 # =========================
 # Константы и словари
@@ -124,19 +128,25 @@ class Product:
 
 
 def format_product(product: Product) -> str:
+    """Вывод по ТЗ п. 2.5: название, цена, площадка, ссылка (рейтинг — при наличии в данных)."""
     safe_title = escape(product.title)
-    safe_category = escape(product.category)
     safe_marketplace = escape(product.marketplace)
     safe_url = escape(product.url, quote=True)
     category_icon = CATEGORY_ICONS.get(product.category, "📦")
     marketplace_icon = MARKETPLACE_ICONS.get(product.marketplace, "🏪")
-    return (
-        f"{category_icon} <b>Название:</b> {safe_title}\n"
-        f"💰 <b>Цена:</b> {format_price(product.price)}\n"
-        f"🗂️ <b>Категория:</b> {safe_category}\n"
-        f"{marketplace_icon} <b>Площадка:</b> {safe_marketplace}\n"
-        f"🔗 <b>Ссылка:</b> <a href=\"{safe_url}\">Открыть товар</a>"
+    lines: list[str] = [
+        f"{category_icon} <b>Название:</b> {safe_title}",
+        f"💰 <b>Цена:</b> {format_price(product.price)}",
+    ]
+    if product.rating is not None:
+        lines.append(f"⭐ <b>Рейтинг:</b> {product.rating}")
+    lines.extend(
+        [
+            f"{marketplace_icon} <b>Площадка:</b> {safe_marketplace}",
+            f"🔗 <b>Ссылка:</b> <a href=\"{safe_url}\">Открыть товар</a>",
+        ]
     )
+    return "\n".join(lines)
 
 
 def product_image_url(product: Product) -> str:
@@ -255,8 +265,9 @@ class AIService:
                 {
                     "role": "system",
                     "content": (
-                        "Ты ассистент по подбору товаров. Отвечай по-русски, коротко и по делу. "
-                        "Дай 2-4 предложения: что лучше выбрать из списка и почему."
+                        "Ты ассистент по подбору товаров (Telegram AKEM-bot). Отвечай по-русски, коротко и по делу. "
+                        "Обязательно учитывай соотношение цены и рейтинга. Дай 2–4 предложения: что выбрать в первую "
+                        "очередь и почему."
                     ),
                 },
                 {
@@ -348,7 +359,9 @@ class AIService:
             lines.append(
                 f"{index}) {product.title}; цена={product.price}; площадка={product.marketplace}; рейтинг={product.rating}"
             )
-        lines.append("Сделай краткую рекомендацию, какой товар выбрать пользователю в первую очередь.")
+        lines.append(
+            "Сделай краткую рекомендацию: какой товар выбрать в первую очередь с учётом цены и рейтинга."
+        )
         return "\n".join(lines)
 
     @staticmethod
@@ -465,12 +478,12 @@ def result_actions_keyboard(category_slug: str, next_offset: int, has_more: bool
     rows: list[list[InlineKeyboardButton]] = []
     if has_more:
         rows.append(
-            [InlineKeyboardButton(text="🔄 Показать еще", callback_data=f"more:{category_slug}:{next_offset}")]
+            [InlineKeyboardButton(text="🔄 Показать ещё", callback_data=f"more:{category_slug}:{next_offset}")]
         )
     rows.extend(
         [
             [InlineKeyboardButton(text=ai_status_label(), callback_data="ai_toggle")],
-            [InlineKeyboardButton(text="🗂 Другую категорию", callback_data="open_categories")],
+            [InlineKeyboardButton(text="🗂 Другие категории", callback_data="open_categories")],
             [InlineKeyboardButton(text="🆕 Новый поиск", callback_data="new_search")],
         ]
     )
@@ -493,11 +506,31 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
     text = (
-        "👋 Привет! Я помогу подобрать товары по категориям.\n\n"
-        "Что умею в MVP:\n"
-        "- 🧭 выбор категории;\n"
-        "- 🛒 показ товаров из Ozon, Wildberries и DNS;\n"
-        "- 🔗 прямые ссылки на каждый товар."
+        f"👋 Привет! Я <b>{BOT_BRAND_NAME}</b> ({BOT_USERNAME_DISPLAY}) — бот-агрегатор для поиска товаров "
+        "на маркетплейсах <b>Ozon</b>, <b>Wildberries</b> и <b>DNS</b>.\n\n"
+        "Что умею:\n"
+        "• выбор категории (смартфоны, ноутбуки, техника для дома и др.);\n"
+        "• выдача предложений с ценой, площадкой и ссылкой на покупку;\n"
+        "• при включённом AI — краткие рекомендации с учётом цены и рейтинга.\n\n"
+        "Откройте категории кнопкой ниже или введите /help."
+    )
+    await message.answer(text, reply_markup=start_keyboard())
+
+
+@router.message(Command("help"))
+async def cmd_help(message: Message) -> None:
+    text = (
+        f"<b>{BOT_BRAND_NAME}</b> ({BOT_USERNAME_DISPLAY})\n\n"
+        "<b>Команды</b>\n"
+        "/start — приветствие и главное меню\n"
+        "/help — эта справка\n\n"
+        "<b>Кнопки</b>\n"
+        "• «Выбрать категорию» — список категорий товаров\n"
+        "• «Показать ещё» — следующие три товара (до 15 на категорию)\n"
+        "• «Другие категории» — сменить категорию\n"
+        "• «Новый поиск» — начать заново\n"
+        "• «AI: ВКЛ/ВЫКЛ» — подсказки и подбор через AI (если задан ключ API)\n\n"
+        "Ссылки ведут на поиск маркетплейсов по названию товара (как в ТЗ)."
     )
     await message.answer(text, reply_markup=start_keyboard())
 

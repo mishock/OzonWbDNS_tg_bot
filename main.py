@@ -1,7 +1,7 @@
 """
 Что: точка входа aiogram 3 бота.
 Зачем: инициализирует бота, роутеры и запускает polling.
-Важно: перед запуском должен быть задан BOT_TOKEN или TELEGRAM_BOT_TOKEN.
+Важно: перед запуском должен быть задан BOT_TOKEN или TELEGRAM_BOT_TOKEN. Команды: /start, /help.
 """
 
 import asyncio
