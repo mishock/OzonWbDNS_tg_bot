@@ -23,3 +23,6 @@ services:
     # Что: политика перезапуска.
     # Зачем: повышает живучесть сервиса после сбоев/ребута.
     restart: unless-stopped
+    # Что: сеть хоста (как у Pi), без Docker NAT и отдельного DNS.
+    # Зачем: стабильный доступ к api.telegram.org; bridge-DNS отдавал недоступный DC.
+    network_mode: host
